@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: nexuswarfare
+    volumes:
+      - mongo_data:/data/db
+
+  game-server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    ports:
+      - "3000:3000"
+      - "8080:8080"
+    environment:
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongodb:27017/nexuswarfare
+      - REDIS_URL=redis://redis:6379
+      - PORT=3000
+      - WS_PORT=8080
+    depends_on:
+      - redis
+      - mongodb
+
+  matchmaking:
+    build:
+      context: services/matchmaking
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - GAME_SERVER_URL=http://game-server:3000
+    depends_on:
+      - redis
+      - game-server
+
+  analytics:
+    build:
+      context: services/analytics
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/nexuswarfare
+    depends_on:
+      - mongodb
+
+  leaderboard:
+    build:
+      context: services/leaderboard
+      dockerfile: Dockerfile
+    ports:
+      - "5001:5001"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - MONGO_URI=mongodb://mongodb:27017/nexuswarfare
+    depends_on:
+      - redis
+      - mongodb
+
+volumes:
+  redis_data:
+  mongo_data:
